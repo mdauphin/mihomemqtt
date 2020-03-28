@@ -1,0 +1,11 @@
+[Unit]
+Description=MiHome to MQTT service.
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python /home/max/mihome/mihomemqtt.py > /var/log/mihomemqtt.log
+
+[Install]
+WantedBy=multi-user.target
