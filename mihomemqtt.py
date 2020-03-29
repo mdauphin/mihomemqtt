@@ -2,7 +2,7 @@ import socket
 import binascii
 import struct
 import json
-import paho.mqtt.client as mqtt
+import paho.mqtt.publish as publish
 import syslog
  
 MULTICAST_PORT = 9898
@@ -34,34 +34,32 @@ def prepare_socket():
  
 def prepare_mqtt():
     client = mqtt.Client()
-    client.connect(MQTT_SERVER, MQTT_PORT, 60)
- 
+    client.connect(MQTT_SERVER, MQTT_PORT, 60) 
     return client
  
 LAST_TOKEN = None
  
-def push_data(client, model, sid, cmd, data):
+def push_data(model, sid, cmd, data):
     if cmd == u"heartbeat":
         return
+
     for key, value in data.items():
         path = PATH_FMT.format(model=model,
                                sid=sid,
                                cmd=cmd,
                                prop=key)
         syslog.syslog(syslog.LOG_DEBUG,path)
-        client.publish(path, payload=value)
+        publish.single(path, 
+            payload=value, 
+            hostname=MQTT_SERVER,
+            port=MQTT_PORT)
+
  
-    #elif cmd == "heartbeat":
-    #    pass
- 
-def handle_incoming_data(client, payload):
+def handle_incoming_data(payload):
     global LAST_TOKEN
-    #print("incoming", payload)
     syslog.syslog(syslog.LOG_DEBUG, str(payload))
     if 'data' in payload:
-        #print("push_data", payload['data'])
-        push_data(client,
-                  payload['model'],
+        push_data(payload['model'],
                   payload['sid'],
                   payload['cmd'],
                   json.loads(payload["data"]))
@@ -71,14 +69,13 @@ def handle_incoming_data(client, payload):
  
 if __name__ == "__main__":
     sock = prepare_socket()
-    client = prepare_mqtt()    
     syslog.syslog('Processing started')
 
     while True:
         data, addr = sock.recvfrom(SOCKET_BUFSIZE) # buffer size is 1024 bytes
         try:
             payload = json.loads(data.decode("utf-8"))
-            handle_incoming_data(client, payload)
+            handle_incoming_data(payload)
         except Exception as e:
             syslog.syslog(syslog.LOG_ERR,"{}:{}".format(data,e))
             print("Can't handle message %r (%r)" % (data, e))
